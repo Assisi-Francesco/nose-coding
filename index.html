@@ -275,8 +275,13 @@
         }
 
         function videoReady() {
-            // FaceMesh 초기화
-            faceMesh = ml5.faceMesh(video, modelLoaded);
+            // FaceMesh 초기화 (ml5.js 0.12.2 API)
+            const options = {
+                maxFaces: 1,
+                refineLandmarks: true,
+                flipped: false
+            };
+            faceMesh = ml5.facemesh(video, options, modelLoaded);
         }
 
         function modelLoaded() {
@@ -284,7 +289,7 @@
             isModelReady = true;
             document.getElementById('status').textContent = '준비 완료';
             document.getElementById('status').className = 'status-indicator status-ready';
-            faceMesh.on('face', gotFaces);
+            faceMesh.on('predict', gotFaces);
         }
 
         function gotFaces(results) {
@@ -363,16 +368,18 @@
 
         // 눈 깜빡임 감지
         function detectBlink(face) {
-            if (!face || !face.keypoints) return false;
+            if (!face || !face.scaledMesh) return false;
 
-            // ml5 FaceMesh 키포인트에서 눈 위치 추출
+            const mesh = face.scaledMesh;
+
+            // ml5 FaceMesh scaledMesh에서 눈 위치 추출
             // 왼쪽 눈: 33, 160, 158, 133, 153, 144
             // 오른쪽 눈: 362, 385, 387, 263, 373, 380
             const leftEyeIndices = [33, 160, 158, 133, 153, 144];
             const rightEyeIndices = [362, 385, 387, 263, 373, 380];
 
-            const leftEye = leftEyeIndices.map(i => face.keypoints[i]);
-            const rightEye = rightEyeIndices.map(i => face.keypoints[i]);
+            const leftEye = leftEyeIndices.map(i => ({ x: mesh[i][0], y: mesh[i][1] }));
+            const rightEye = rightEyeIndices.map(i => ({ x: mesh[i][0], y: mesh[i][1] }));
 
             const leftEAR = calculateEAR(leftEye);
             const rightEAR = calculateEAR(rightEye);
@@ -435,13 +442,13 @@
             if (faces.length > 0 && isModelReady) {
                 const face = faces[0];
 
-                // 코 끝 위치 (인덱스 1)
-                if (face.keypoints && face.keypoints[1]) {
-                    const nose = face.keypoints[1];
+                // 코 끝 위치 (scaledMesh 인덱스 1)
+                if (face.scaledMesh && face.scaledMesh[1]) {
+                    const nose = face.scaledMesh[1];
 
                     // 거울 모드 적용
-                    noseX = width - nose.x;
-                    noseY = nose.y;
+                    noseX = width - nose[0];
+                    noseY = nose[1];
 
                     // 부드러운 움직임 (스무딩)
                     smoothNoseX += (noseX - smoothNoseX) * 0.3;
