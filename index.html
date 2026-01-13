@@ -582,12 +582,20 @@
             setTimeout(updateKeyRects, 100);
         });
 
-        // 키보드 스페이스바로 테스트 입력 (디버깅용)
+        // 키보드 단축키
         window.addEventListener('keydown', (e) => {
+            // 스페이스바: 호버된 키 입력
             if (e.code === 'Space' && hoveredKey) {
                 e.preventDefault();
                 handleKeyPress(hoveredKey.key);
                 console.log('스페이스바로 입력:', hoveredKey.key);
+            }
+            // 백스페이스: 텍스트 삭제
+            if (e.code === 'Backspace') {
+                e.preventDefault();
+                typedText = typedText.slice(0, -1);
+                updateOutputText();
+                console.log('백스페이스로 삭제');
             }
         });
     </script>
