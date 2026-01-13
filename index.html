@@ -40,13 +40,13 @@
             margin: 0 auto;
         }
 
-        .top-section {
+        .main-section {
             display: flex;
             gap: 20px;
             margin-bottom: 20px;
         }
 
-        .video-container {
+        .video-wrapper {
             flex: 2;
             position: relative;
             background: #0f0f23;
@@ -59,6 +59,67 @@
             display: block;
         }
 
+        /* 키보드 오버레이 - 웹캠 위에 배치 */
+        .keyboard-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .keyboard {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .keyboard-row {
+            display: flex;
+            gap: 4px;
+        }
+
+        .key {
+            width: 40px;
+            height: 40px;
+            background: rgba(30, 30, 60, 0.85);
+            border: 2px solid rgba(100, 100, 150, 0.6);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+            font-weight: bold;
+            color: rgba(200, 200, 220, 0.9);
+            transition: all 0.15s;
+            backdrop-filter: blur(5px);
+        }
+
+        .key.hover {
+            background: rgba(0, 212, 255, 0.9);
+            border-color: #00d4ff;
+            color: #000;
+            transform: scale(1.15);
+            box-shadow: 0 0 25px rgba(0, 212, 255, 0.7);
+        }
+
+        .key.pressed {
+            background: rgba(255, 64, 129, 0.95);
+            border-color: #ff4081;
+            transform: scale(0.95);
+        }
+
+        .key.space {
+            width: 140px;
+        }
+
+        .key.backspace, .key.enter {
+            width: 60px;
+            font-size: 0.8rem;
+        }
+
         .status-indicator {
             position: absolute;
             top: 10px;
@@ -67,6 +128,7 @@
             border-radius: 20px;
             font-size: 0.8rem;
             font-weight: bold;
+            z-index: 20;
         }
 
         .status-loading {
@@ -87,9 +149,10 @@
             border-radius: 20px;
             font-size: 0.8rem;
             font-weight: bold;
-            background: #333;
+            background: rgba(50, 50, 50, 0.8);
             color: #666;
             transition: all 0.1s;
+            z-index: 20;
         }
 
         .blink-indicator.active {
@@ -138,64 +201,6 @@
             51%, 100% { opacity: 0; }
         }
 
-        .keyboard-container {
-            background: #0f0f23;
-            border-radius: 15px;
-            padding: 20px;
-            border: 2px solid #333;
-        }
-
-        .keyboard {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .keyboard-row {
-            display: flex;
-            gap: 6px;
-        }
-
-        .key {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(145deg, #2a2a4a, #1a1a2e);
-            border: 2px solid #444;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.1rem;
-            font-weight: bold;
-            color: #ccc;
-            transition: all 0.15s;
-            cursor: default;
-        }
-
-        .key.hover {
-            background: linear-gradient(145deg, #00d4ff, #0099cc);
-            border-color: #00d4ff;
-            color: #000;
-            transform: scale(1.1);
-            box-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
-        }
-
-        .key.pressed {
-            background: #ff4081;
-            border-color: #ff4081;
-            transform: scale(0.95);
-        }
-
-        .key.space {
-            width: 200px;
-        }
-
-        .key.backspace, .key.enter {
-            width: 80px;
-            font-size: 0.9rem;
-        }
-
         .instructions {
             margin-top: 20px;
             text-align: center;
@@ -213,20 +218,21 @@
         <h1>코 포인터 키보드</h1>
         <p class="subtitle">코로 포인터를 움직이고, 두 눈을 동시에 깜빡여 입력하세요</p>
 
-        <div class="top-section">
-            <div class="video-container">
+        <div class="main-section">
+            <div class="video-wrapper">
                 <div id="video-canvas"></div>
                 <div id="status" class="status-indicator status-loading">모델 로딩중...</div>
                 <div id="blink-indicator" class="blink-indicator">눈 깜빡임</div>
+
+                <!-- 키보드 오버레이 -->
+                <div class="keyboard-overlay">
+                    <div class="keyboard" id="keyboard"></div>
+                </div>
             </div>
             <div class="text-container">
                 <h3>입력된 텍스트</h3>
                 <div id="output-text"><span class="cursor">|</span></div>
             </div>
-        </div>
-
-        <div class="keyboard-container">
-            <div class="keyboard" id="keyboard"></div>
         </div>
 
         <p class="instructions">
@@ -246,7 +252,7 @@
         let hoveredKey = null;
         let lastBlinkTime = 0;
         let isBlinking = false;
-        let blinkCooldown = 500; // 깜빡임 쿨다운 (ms)
+        let blinkCooldown = 500;
 
         // 키보드 레이아웃
         const keyboardLayout = [
@@ -256,26 +262,23 @@
             ['SPACE', '⌫', '↵']
         ];
 
-        // 키 정보 저장
+        // 키 정보 저장 (캔버스 좌표 기준)
         let keyElements = [];
-        let keyPositions = [];
+        let keyRects = [];
 
         // p5.js 설정
         function setup() {
             const canvas = createCanvas(640, 480);
             canvas.parent('video-canvas');
 
-            // 웹캠 설정
             video = createCapture(VIDEO, videoReady);
             video.size(640, 480);
             video.hide();
 
-            // 키보드 생성
             createKeyboard();
         }
 
         function videoReady() {
-            // FaceMesh 초기화 (ml5.js 0.12.2 API)
             const options = {
                 maxFaces: 1,
                 refineLandmarks: true,
@@ -296,14 +299,12 @@
             faces = results;
         }
 
-        // 키보드 DOM 생성
         function createKeyboard() {
             const keyboard = document.getElementById('keyboard');
             keyboard.innerHTML = '';
             keyElements = [];
-            keyPositions = [];
 
-            keyboardLayout.forEach((row, rowIndex) => {
+            keyboardLayout.forEach((row) => {
                 const rowDiv = document.createElement('div');
                 rowDiv.className = 'keyboard-row';
 
@@ -315,7 +316,6 @@
 
                     if (key === 'SPACE') {
                         keyDiv.classList.add('space');
-                        keyDiv.textContent = 'SPACE';
                     } else if (key === '⌫') {
                         keyDiv.classList.add('backspace');
                     } else if (key === '↵') {
@@ -329,33 +329,35 @@
                 keyboard.appendChild(rowDiv);
             });
 
-            // 위치 업데이트는 draw에서 처리
-            setTimeout(updateKeyPositions, 100);
+            setTimeout(updateKeyRects, 100);
         }
 
-        function updateKeyPositions() {
-            keyPositions = keyElements.map(el => {
+        // 키의 캔버스 좌표 계산
+        function updateKeyRects() {
+            const canvasEl = document.querySelector('#video-canvas canvas');
+            if (!canvasEl) return;
+
+            const canvasRect = canvasEl.getBoundingClientRect();
+
+            keyRects = keyElements.map(el => {
                 const rect = el.getBoundingClientRect();
                 return {
                     element: el,
                     key: el.dataset.key,
-                    x: rect.left + rect.width / 2,
-                    y: rect.top + rect.height / 2,
+                    // 캔버스 내부 좌표로 변환
+                    x: rect.left - canvasRect.left + rect.width / 2,
+                    y: rect.top - canvasRect.top + rect.height / 2,
                     width: rect.width,
                     height: rect.height
                 };
             });
         }
 
-        // EAR (Eye Aspect Ratio) 계산
         function calculateEAR(eyePoints) {
             if (!eyePoints || eyePoints.length < 6) return 1;
 
-            // 눈의 수직 거리
             const v1 = dist(eyePoints[1].x, eyePoints[1].y, eyePoints[5].x, eyePoints[5].y);
             const v2 = dist(eyePoints[2].x, eyePoints[2].y, eyePoints[4].x, eyePoints[4].y);
-
-            // 눈의 수평 거리
             const h = dist(eyePoints[0].x, eyePoints[0].y, eyePoints[3].x, eyePoints[3].y);
 
             if (h === 0) return 1;
@@ -366,30 +368,67 @@
             return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
         }
 
-        // 눈 깜빡임 감지
+        // EAR 기록 (변화량 감지용)
+        let lastLeftEAR = 0;
+        let lastRightEAR = 0;
+        let earHistory = [];
+        const EAR_HISTORY_SIZE = 10;
+        let baselineEAR = 0.28; // 기준 EAR (자동 업데이트됨)
+        let maxDropValue = 0; // 최대 Drop 값 기록
+        let maxDropTime = 0;
+
         function detectBlink(face) {
             if (!face || !face.scaledMesh) return false;
 
             const mesh = face.scaledMesh;
 
-            // ml5 FaceMesh scaledMesh에서 눈 위치 추출
-            // 왼쪽 눈: 33, 160, 158, 133, 153, 144
-            // 오른쪽 눈: 362, 385, 387, 263, 373, 380
-            const leftEyeIndices = [33, 160, 158, 133, 153, 144];
-            const rightEyeIndices = [362, 385, 387, 263, 373, 380];
+            // MediaPipe FaceMesh 눈 랜드마크 인덱스
+            const leftEyeTop = [159, 145];
+            const leftEyeBottom = [153, 144];
+            const leftEyeLeft = 33;
+            const leftEyeRight = 133;
 
-            const leftEye = leftEyeIndices.map(i => ({ x: mesh[i][0], y: mesh[i][1] }));
-            const rightEye = rightEyeIndices.map(i => ({ x: mesh[i][0], y: mesh[i][1] }));
+            const rightEyeTop = [386, 374];
+            const rightEyeBottom = [380, 373];
+            const rightEyeLeft = 362;
+            const rightEyeRight = 263;
 
-            const leftEAR = calculateEAR(leftEye);
-            const rightEAR = calculateEAR(rightEye);
+            // 왼쪽 눈 EAR
+            const leftV1 = dist(mesh[leftEyeTop[0]][0], mesh[leftEyeTop[0]][1], mesh[leftEyeBottom[0]][0], mesh[leftEyeBottom[0]][1]);
+            const leftV2 = dist(mesh[leftEyeTop[1]][0], mesh[leftEyeTop[1]][1], mesh[leftEyeBottom[1]][0], mesh[leftEyeBottom[1]][1]);
+            const leftH = dist(mesh[leftEyeLeft][0], mesh[leftEyeLeft][1], mesh[leftEyeRight][0], mesh[leftEyeRight][1]);
+            const leftEAR = leftH > 0 ? (leftV1 + leftV2) / (2.0 * leftH) : 1;
 
-            // 두 눈 모두 임계값 이하일 때 깜빡임으로 판정
-            const threshold = 0.2;
-            return leftEAR < threshold && rightEAR < threshold;
+            // 오른쪽 눈 EAR
+            const rightV1 = dist(mesh[rightEyeTop[0]][0], mesh[rightEyeTop[0]][1], mesh[rightEyeBottom[0]][0], mesh[rightEyeBottom[0]][1]);
+            const rightV2 = dist(mesh[rightEyeTop[1]][0], mesh[rightEyeTop[1]][1], mesh[rightEyeBottom[1]][0], mesh[rightEyeBottom[1]][1]);
+            const rightH = dist(mesh[rightEyeLeft][0], mesh[rightEyeLeft][1], mesh[rightEyeRight][0], mesh[rightEyeRight][1]);
+            const rightEAR = rightH > 0 ? (rightV1 + rightV2) / (2.0 * rightH) : 1;
+
+            const avgEAR = (leftEAR + rightEAR) / 2;
+
+            lastLeftEAR = leftEAR;
+            lastRightEAR = rightEAR;
+
+            // EAR 히스토리 저장
+            earHistory.push(avgEAR);
+            if (earHistory.length > EAR_HISTORY_SIZE) {
+                earHistory.shift();
+            }
+
+            // 기준선 업데이트 (최근 값들의 최대값)
+            if (earHistory.length >= EAR_HISTORY_SIZE) {
+                const maxRecent = Math.max(...earHistory);
+                baselineEAR = baselineEAR * 0.95 + maxRecent * 0.05;
+            }
+
+            // 변화량 기반 감지: 기준선 대비 0.5% 이상 감소하면 깜빡임
+            const dropThreshold = 0.005;
+            const drop = baselineEAR - avgEAR;
+
+            return drop > dropThreshold;
         }
 
-        // 키 입력 처리
         function handleKeyPress(key) {
             if (key === 'SPACE') {
                 typedText += ' ';
@@ -403,7 +442,6 @@
 
             updateOutputText();
 
-            // 키 눌림 효과
             const keyEl = keyElements.find(el => el.dataset.key === key);
             if (keyEl) {
                 keyEl.classList.add('pressed');
@@ -416,21 +454,20 @@
             outputEl.innerHTML = typedText + '<span class="cursor">|</span>';
         }
 
-        // 포인터가 어떤 키 위에 있는지 확인
-        function getHoveredKey(screenX, screenY) {
-            for (const keyPos of keyPositions) {
-                const halfW = keyPos.width / 2;
-                const halfH = keyPos.height / 2;
+        // 캔버스 좌표 기준으로 키 확인
+        function getHoveredKey(canvasX, canvasY) {
+            for (const keyRect of keyRects) {
+                const halfW = keyRect.width / 2;
+                const halfH = keyRect.height / 2;
 
-                if (screenX >= keyPos.x - halfW && screenX <= keyPos.x + halfW &&
-                    screenY >= keyPos.y - halfH && screenY <= keyPos.y + halfH) {
-                    return keyPos;
+                if (canvasX >= keyRect.x - halfW && canvasX <= keyRect.x + halfW &&
+                    canvasY >= keyRect.y - halfH && canvasY <= keyRect.y + halfH) {
+                    return keyRect;
                 }
             }
             return null;
         }
 
-        // p5.js 그리기 루프
         function draw() {
             // 거울 모드로 비디오 그리기
             push();
@@ -442,7 +479,6 @@
             if (faces.length > 0 && isModelReady) {
                 const face = faces[0];
 
-                // 코 끝 위치 (scaledMesh 인덱스 1)
                 if (face.scaledMesh && face.scaledMesh[1]) {
                     const nose = face.scaledMesh[1];
 
@@ -450,35 +486,28 @@
                     noseX = width - nose[0];
                     noseY = nose[1];
 
-                    // 부드러운 움직임 (스무딩)
+                    // 스무딩
                     smoothNoseX += (noseX - smoothNoseX) * 0.3;
                     smoothNoseY += (noseY - smoothNoseY) * 0.3;
 
-                    // 코 위치에 포인터 그리기
+                    // 포인터 그리기
                     noStroke();
                     fill(255, 64, 129);
                     ellipse(smoothNoseX, smoothNoseY, 20, 20);
 
-                    // 포인터 주변 링
                     noFill();
                     stroke(255, 64, 129, 150);
                     strokeWeight(2);
                     ellipse(smoothNoseX, smoothNoseY, 30, 30);
 
-                    // 화면 좌표로 변환 (캔버스 → 화면)
-                    const canvasRect = document.getElementById('video-canvas').getBoundingClientRect();
-                    const screenX = canvasRect.left + smoothNoseX;
-                    const screenY = canvasRect.top + smoothNoseY;
-
                     // 키 위치 업데이트
                     if (frameCount % 30 === 0) {
-                        updateKeyPositions();
+                        updateKeyRects();
                     }
 
-                    // 호버된 키 확인
-                    const newHoveredKey = getHoveredKey(screenX, screenY);
+                    // 캔버스 좌표로 호버 확인
+                    const newHoveredKey = getHoveredKey(smoothNoseX, smoothNoseY);
 
-                    // 호버 상태 업데이트
                     keyElements.forEach(el => el.classList.remove('hover'));
                     if (newHoveredKey) {
                         newHoveredKey.element.classList.add('hover');
@@ -494,10 +523,11 @@
                         isBlinking = true;
                         lastBlinkTime = currentTime;
                         blinkIndicator.classList.add('active');
+                        console.log('눈 깜빡임 감지!', hoveredKey ? hoveredKey.key : '키 없음');
 
-                        // 키 입력 처리
                         if (hoveredKey) {
                             handleKeyPress(hoveredKey.key);
+                            console.log('키 입력:', hoveredKey.key);
                         }
                     } else if (!blinkDetected && isBlinking) {
                         isBlinking = false;
@@ -506,7 +536,39 @@
                 }
             }
 
-            // 안내 텍스트 (얼굴 감지 안됨)
+            // EAR 디버깅 표시
+            if (isModelReady && faces.length > 0) {
+                const avgEAR = (lastLeftEAR + lastRightEAR) / 2;
+                const drop = baselineEAR - avgEAR;
+
+                // 최대 Drop 값 기록 (3초간 유지)
+                if (drop > maxDropValue) {
+                    maxDropValue = drop;
+                    maxDropTime = millis();
+                }
+                if (millis() - maxDropTime > 3000) {
+                    maxDropValue = 0;
+                }
+
+                fill(255, 255, 255);
+                noStroke();
+                textSize(12);
+                textAlign(LEFT, TOP);
+                text(`AVG EAR: ${avgEAR.toFixed(3)}`, 10, 45);
+                text(`Baseline: ${baselineEAR.toFixed(3)}`, 10, 60);
+                text(`Drop: ${drop.toFixed(3)}`, 10, 75);
+
+                // 최근 최대 Drop 값 표시
+                fill(255, 255, 0);
+                text(`Max Drop (3s): ${maxDropValue.toFixed(3)}`, 10, 90);
+
+                // 감지 여부 표시
+                if (drop > 0.005) {
+                    fill(0, 255, 0);
+                    text(`BLINK!`, 10, 105);
+                }
+            }
+
             if (faces.length === 0 && isModelReady) {
                 fill(255, 255, 255, 200);
                 noStroke();
@@ -516,9 +578,17 @@
             }
         }
 
-        // 윈도우 리사이즈 시 키 위치 업데이트
         window.addEventListener('resize', () => {
-            setTimeout(updateKeyPositions, 100);
+            setTimeout(updateKeyRects, 100);
+        });
+
+        // 키보드 스페이스바로 테스트 입력 (디버깅용)
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && hoveredKey) {
+                e.preventDefault();
+                handleKeyPress(hoveredKey.key);
+                console.log('스페이스바로 입력:', hoveredKey.key);
+            }
         });
     </script>
 </body>
